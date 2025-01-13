@@ -8,9 +8,28 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
+use OpenAI\Laravel\Facades\OpenAI;
+
 
 class ChirpController extends Controller
 {
+    public function generateAIChirp(): RedirectResponse
+    {
+        $response = OpenAI::chat()->create([
+            'model' => 'gpt-3.5-turbo',  // Change to 'gpt-4' if needed
+            'messages' => [
+                ['role' => 'system', 'content' => 'You are a creative assistant generating short chirps about technology.'],
+                ['role' => 'user', 'content' => 'Generate a fun and positive chirp about technology trends.']
+            ],
+        ]);
+    
+        $message = trim($response['choices'][0]['message']['content'] ?? 'Generated chirp not available.');
+    
+        // Save the generated chirp for the authenticated user
+        auth()->user()->chirps()->create(['message' => $message]);
+    
+        return redirect(route('chirps.index'))->with('success', 'AI-generated chirp created successfully.');
+    }
     /**
      * Display a listing of the resource.
      */
