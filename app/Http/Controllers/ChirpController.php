@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Chirp;
+use Illuminate\Auth\Events\Validated;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -13,23 +14,6 @@ use OpenAI\Laravel\Facades\OpenAI;
 
 class ChirpController extends Controller
 {
-    public function generateAIChirp(): RedirectResponse
-    {
-        $response = OpenAI::chat()->create([
-            'model' => 'gpt-3.5-turbo',  // Change to 'gpt-4' if needed
-            'messages' => [
-                ['role' => 'system', 'content' => 'You are a creative assistant generating short chirps about technology.'],
-                ['role' => 'user', 'content' => 'Generate a fun and positive chirp about technology trends.']
-            ],
-        ]);
-    
-        $message = trim($response['choices'][0]['message']['content'] ?? 'Generated chirp not available.');
-    
-        // Save the generated chirp for the authenticated user
-        auth()->user()->chirps()->create(['message' => $message]);
-    
-        return redirect(route('chirps.index'))->with('success', 'AI-generated chirp created successfully.');
-    }
     /**
      * Display a listing of the resource.
      */
@@ -107,5 +91,43 @@ class ChirpController extends Controller
         $chirp->delete();
  
         return redirect(route('chirps.index'));
+    }
+
+    public function generate(Request $request)
+    {
+        $validated = $request->validate([
+            'topic' => 'required|string|max:255',
+            'mood' => 'required|string|max:255',
+            'seriousnessLevel' => 'required|integer|min:1|max:3',
+        ]);
+        
+        $alternatives = [];
+
+        for ($i = 0; $i < 3; $i++ ){
+            $result = OpenAI::chat()->create([
+                'model' => 'gpt-3.5-turbo',
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => 'You are a helpful assistant.',
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => "Write me a social media post, no more than 180 characters.
+                            On the topic of {$validated['topic']}.
+                            Based on the {$validated['mood']} feeling.
+                            And on a seriousness level of {$validated['seriousnessLevel']} in a 3-grade scale.",
+                    ],
+                ],
+            ]);
+            
+            $generatedResponse = $result->choices[0]->message->content;
+            $alternatives[] = $generatedResponse;
+        }
+        
+        session()->flash('alternatives', $alternatives);
+
+        return response()->json($alternatives);
+        //return redirect(route('chirps.index'));
     }
 }
